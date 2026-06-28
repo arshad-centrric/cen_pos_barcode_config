@@ -40,7 +40,7 @@ app_license = "mit"
 # webform_include_css = {"doctype": "public/css/doctype.css"}
 
 # include js in page
-# page_js = {"page" : "public/js/file.js"}
+page_js = {"point-of-sale" : "public/js/pos_barcode_interceptor.js"}
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
@@ -87,6 +87,7 @@ app_license = "mit"
 
 # before_install = "cen_pos_barcode_config.install.before_install"
 # after_install = "cen_pos_barcode_config.install.after_install"
+after_migrate = "cen_pos_barcode_config.setup.custom_fields.create_custom_fields"
 
 # Uninstallation
 # ------------
