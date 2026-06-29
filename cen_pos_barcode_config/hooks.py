@@ -87,7 +87,7 @@ page_js = {"point-of-sale" : "public/js/pos_barcode_interceptor.js"}
 
 # before_install = "cen_pos_barcode_config.install.before_install"
 # after_install = "cen_pos_barcode_config.install.after_install"
-after_migrate = "cen_pos_barcode_config.setup.custom_fields.create_custom_fields"
+# after_migrate = "cen_pos_barcode_config.setup.custom_fields.create_custom_fields"
 
 # Uninstallation
 # ------------

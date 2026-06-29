@@ -7,69 +7,94 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "barcode_structure_section",
+  "trigger_config_section",
+  "barcode_prefix",
+  "col_break_1",
   "barcode_length",
+  "data_extraction_section",
   "item_code_start",
   "item_code_end",
-  "uom_code_start",
-  "uom_code_end",
+  "col_break_2",
   "qty_start",
   "qty_end",
-  "qty_decimal_places"
+  "calculations_section",
+  "weight_divisor"
  ],
  "fields": [
   {
-   "fieldname": "barcode_structure_section",
-   "fieldtype": "Section Break",
-   "label": "Barcode Structure"
-  },
-  {
-   "default": "14",
+   "default": "11",
+   "description": "Exact length of the repacked barcode.",
    "fieldname": "barcode_length",
    "fieldtype": "Int",
    "label": "Barcode Length"
   },
   {
+   "default": "1",
    "fieldname": "item_code_start",
    "fieldtype": "Int",
    "label": "Item Code Start"
   },
   {
+   "default": "6",
    "fieldname": "item_code_end",
    "fieldtype": "Int",
    "label": "Item Code End"
   },
   {
-   "fieldname": "uom_code_start",
-   "fieldtype": "Int",
-   "label": "UOM Code Start"
-  },
-  {
-   "fieldname": "uom_code_end",
-   "fieldtype": "Int",
-   "label": "UOM Code End"
-  },
-  {
+   "default": "6",
    "fieldname": "qty_start",
    "fieldtype": "Int",
    "label": "Qty Start"
   },
   {
+   "default": "11",
    "fieldname": "qty_end",
    "fieldtype": "Int",
    "label": "Qty End"
   },
   {
-   "fieldname": "qty_decimal_places",
-   "fieldtype": "Int",
-   "label": "Qty Decimal Places"
+   "fieldname": "trigger_config_section",
+   "fieldtype": "Section Break",
+   "label": "Trigger Configuration"
+  },
+  {
+   "default": "0",
+   "description": "Starting digit(s) that trigger the POS interception.",
+   "fieldname": "barcode_prefix",
+   "fieldtype": "Data",
+   "label": "Barcode Prefix"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "data_extraction_section",
+   "fieldtype": "Section Break",
+   "label": "Data Extraction (Indices)"
+  },
+  {
+   "fieldname": "col_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "calculations_section",
+   "fieldtype": "Section Break",
+   "label": "Calculations"
+  },
+  {
+   "default": "1000",
+   "description": "Divide the parsed quantity by this number to get the final unit (e.g., 1000 to convert Grams to Kg).",
+   "fieldname": "weight_divisor",
+   "fieldtype": "Float",
+   "label": "Weight Divisor"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-28 13:11:26.580756",
+ "modified": "2026-06-29 07:29:00.519821",
  "modified_by": "Administrator",
  "module": "Cen Pos Barcode Config",
  "name": "Weigh Scale Settings",

@@ -11,6 +11,17 @@ Implement a custom Weighing Scale Barcode integration into the Point of Sale (PO
 
 ## Implementation Phases & Progress
 
+### Repacking Logic Refactoring
+- [x] **Phase 1: Database Schema Refactoring & Cleanup**
+  - Removed `custom_weigh_scale_id` and `custom_weigh_scale_code` custom fields.
+  - Wiped and rebuilt `Weigh Scale Settings` DocType for new dynamic 11-digit repacking logic.
+  - Unhooked old custom fields creation logic.
+- [x] **Phase 2: JavaScript Core Logic Refactor**
+  - Refactored `pos_barcode_interceptor.js` to use native `Item Barcode` DB lookup.
+  - Implemented strict length and prefix validation.
+  - Replaced arbitrary decimal logic with dynamic `weight_divisor` mathematical conversion.
+
+### Original Implementation
 - [x] **Phase 1: Initial Infrastructure Setup**
   - App `cen_pos_barcode_config` initialized.
 - [x] **Phase 2: Data Structure Setup**
