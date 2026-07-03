@@ -18,7 +18,10 @@
   "qty_start",
   "qty_end",
   "calculations_section",
-  "weight_divisor"
+  "weight_divisor",
+  "weigh_scale_barcode_generation",
+  "barcode_sequence_format",
+  "last_generated_sequence"
  ],
  "fields": [
   {
@@ -88,13 +91,32 @@
    "fieldname": "weight_divisor",
    "fieldtype": "Float",
    "label": "Weight Divisor"
+  },
+  {
+   "fieldname": "weigh_scale_barcode_generation",
+   "fieldtype": "Section Break",
+   "label": "Weigh Scale Barcode Generation"
+  },
+  {
+   "default": "###",
+   "description": "Use # to define the zero-padding length. For example, ### will generate 001, 002. ###### will generate 000001, 000002.",
+   "fieldname": "barcode_sequence_format",
+   "fieldtype": "Data",
+   "label": "Barcode Sequence Format"
+  },
+  {
+   "default": "0",
+   "description": "Displays the last used sequence number. You can manually edit this number to reset or jump the sequence. If this is set to 5, the next generated barcode will be formatted as 6.",
+   "fieldname": "last_generated_sequence",
+   "fieldtype": "Int",
+   "label": "Last Generated Sequence"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-29 07:29:00.519821",
+ "modified": "2026-07-03 15:33:34.462694",
  "modified_by": "Administrator",
  "module": "Cen Pos Barcode Config",
  "name": "Weigh Scale Settings",

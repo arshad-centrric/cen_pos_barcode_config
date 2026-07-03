@@ -5,6 +5,21 @@ app_description = "Automates dynamic barcode scanning in POS with custom UI conf
 app_email = "support@centrric.com"
 app_license = "mit"
 
+fixtures = [
+	{
+		"dt": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Item-custom_is_weigh_scale_item"
+				]
+			]
+		]
+	}
+]
+
 # Apps
 # ------------------
 
@@ -139,13 +154,12 @@ page_js = {"point-of-sale" : "public/js/pos_barcode_interceptor.js"}
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Item": {
+		"before_insert": "cen_pos_barcode_config.api.generate_weigh_scale_barcode"
+	}
+}
+
 
 # Scheduled Tasks
 # ---------------
