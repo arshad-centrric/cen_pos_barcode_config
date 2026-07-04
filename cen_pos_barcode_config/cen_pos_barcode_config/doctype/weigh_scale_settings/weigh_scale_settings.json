@@ -8,17 +8,18 @@
  "engine": "InnoDB",
  "field_order": [
   "trigger_config_section",
-  "barcode_prefix",
   "col_break_1",
   "barcode_length",
   "data_extraction_section",
+  "condition_start",
   "item_code_start",
-  "item_code_end",
-  "col_break_2",
   "qty_start",
+  "col_break_2",
+  "condition_end",
+  "item_code_end",
   "qty_end",
-  "calculations_section",
-  "weight_divisor",
+  "condition_mappings",
+  "condition_rules",
   "weigh_scale_barcode_generation",
   "barcode_sequence_format",
   "last_generated_sequence"
@@ -56,16 +57,19 @@
    "label": "Qty End"
   },
   {
+   "fieldname": "condition_start",
+   "fieldtype": "Int",
+   "label": "Condition Start"
+  },
+  {
+   "fieldname": "condition_end",
+   "fieldtype": "Int",
+   "label": "Condition End"
+  },
+  {
    "fieldname": "trigger_config_section",
    "fieldtype": "Section Break",
    "label": "Trigger Configuration"
-  },
-  {
-   "default": "0",
-   "description": "Starting digit(s) that trigger the POS interception.",
-   "fieldname": "barcode_prefix",
-   "fieldtype": "Data",
-   "label": "Barcode Prefix"
   },
   {
    "fieldname": "col_break_1",
@@ -81,16 +85,15 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "calculations_section",
+   "fieldname": "condition_mappings",
    "fieldtype": "Section Break",
-   "label": "Calculations"
+   "label": "Condition Mappings"
   },
   {
-   "default": "1000",
-   "description": "Divide the parsed quantity by this number to get the final unit (e.g., 1000 to convert Grams to Kg).",
-   "fieldname": "weight_divisor",
-   "fieldtype": "Float",
-   "label": "Weight Divisor"
+   "fieldname": "condition_rules",
+   "fieldtype": "Table",
+   "label": "Condition Rules",
+   "options": "Weigh Scale Condition Rule"
   },
   {
    "fieldname": "weigh_scale_barcode_generation",
@@ -116,7 +119,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-03 15:33:34.462694",
+ "modified": "2026-07-04 11:27:20.336320",
  "modified_by": "Administrator",
  "module": "Cen Pos Barcode Config",
  "name": "Weigh Scale Settings",

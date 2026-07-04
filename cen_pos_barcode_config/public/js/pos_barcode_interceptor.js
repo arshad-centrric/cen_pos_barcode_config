@@ -24,6 +24,7 @@ cen_pos_barcode_config.init_barcode_interceptor = function() {
     if (window._weigh_scale_interceptor_init) return;
     window._weigh_scale_interceptor_init = true;
 
+    // Task 1: Fetching the New Schema (including condition_rules child table)
     frappe.db.get_doc('Weigh Scale Settings').then(settings => {
         try {
             if (!settings || !settings.barcode_length) return;
@@ -39,20 +40,35 @@ cen_pos_barcode_config.init_barcode_interceptor = function() {
                         
                         window.erpnext.PointOfSale.ItemSelector.prototype.filter_items = function({ search_term = "" } = {}) {
                             try {
-                                const prefix = settings.barcode_prefix || "0";
-                                // Strict Validation: Check Length AND Prefix
-                                if (search_term && search_term.length === settings.barcode_length && search_term.startsWith(prefix)) {
-                                    console.log(`[Weigh Scale Interceptor] Valid Barcode Intercepted: ${search_term}`);
-                                    cen_pos_barcode_config.process_weigh_scale_barcode(search_term, settings);
+                                // Task 2: Dynamic Slicing & Rule Matching
+                                if (search_term && search_term.length === settings.barcode_length) {
+                                    // 1-Based UX Translation to 0-Based JS indexing for condition slice
+                                    let s_cond = parseInt(settings.condition_start, 10);
+                                    let e_cond = parseInt(settings.condition_end, 10);
                                     
-                                    // Block standard POS behavior
-                                    this.set_search_value("");
-                                    return; 
+                                    // Slice barcode to extract condition
+                                    const cond_str = search_term.substring(s_cond - 1, e_cond).trim();
+                                    
+                                    // Verify against Condition Rules
+                                    const condition_rules = settings.condition_rules || [];
+                                    const matched_rule = condition_rules.find(r => r.condition_code === cond_str);
+                                    
+                                    // If a match is found, proceed with custom logic
+                                    if (matched_rule) {
+                                        console.log(`[Weigh Scale Interceptor] Valid Barcode Intercepted for rule ${cond_str}: ${search_term}`);
+                                        cen_pos_barcode_config.process_weigh_scale_barcode(search_term, settings, matched_rule);
+                                        
+                                        // Block standard POS behavior
+                                        this.set_search_value("");
+                                        return; 
+                                    }
+                                    // If no match, we exit this block naturally and let the POS handle it standardly
                                 }
                             } catch(err) {
                                 console.error("[Weigh Scale Interceptor] Validation error:", err);
                             }
                             
+                            // Let the standard POS logic process it
                             return original_filter_items.apply(this, arguments);
                         };
                     } else if (attempts > 20) { 
@@ -69,24 +85,25 @@ cen_pos_barcode_config.init_barcode_interceptor = function() {
     });
 };
 
-cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings) {
+cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings, matched_rule) {
     try {
         let s_item = parseInt(settings.item_code_start, 10);
         let e_item = parseInt(settings.item_code_end, 10);
         let s_qty = parseInt(settings.qty_start, 10);
         let e_qty = parseInt(settings.qty_end, 10);
 
-        // 1-Based UX Translation
-        // The user configures start indices as 1-based (e.g., 1 for the first character).
-        // JavaScript substring is 0-based. So we subtract 1 from start, but leave end untouched.
+        // Task 3: Dynamic Calculation & Assignment
+        // 1-Based UX Translation (subtract 1 from start index, leave end untouched)
         const item_code_str = barcode.substring(s_item - 1, e_item).trim();
         const qty_str = barcode.substring(s_qty - 1, e_qty).trim();
         
-        // Math Conversion: Division by Weight Divisor
-        const weight_divisor = parseFloat(settings.weight_divisor) || 1000.0;
-        const qty_value = parseFloat(qty_str) / weight_divisor;
+        // Dynamic Calculation Check
+        let qty_value = parseFloat(qty_str);
+        if (matched_rule.apply_divisor === 1 && matched_rule.divisor_value) {
+            qty_value = qty_value / parseFloat(matched_rule.divisor_value);
+        }
         
-        console.log(`[Weigh Scale Interceptor] Extracted - Barcode: ${item_code_str}, Qty: ${qty_value}`);
+        console.log(`[Weigh Scale Interceptor] Extracted - Barcode: ${item_code_str}, Qty: ${qty_value}, Target UOM: ${matched_rule.target_uom}`);
 
         // Native DB Lookup via POS Barcode Scanner API
         frappe.call({
@@ -97,15 +114,15 @@ cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings)
                     let results = r.message;
                     if (results && results.item_code) {
                         const item_code = results.item_code;
-                        const final_uom = results.uom;
 
                         if (window.cur_pos && window.cur_pos.item_selector) {
                             window.cur_pos.item_selector.get_items({ search_term: item_code }).then(({ message }) => {
                                 if (message && message.items && message.items.length > 0) {
                                     let pos_item = message.items[0];
                                     
-                                    // UOM MAPPING OVERRIDE
-                                    let target_uom = final_uom || pos_item.stock_uom;
+                                    // Task 4: The UOM Injection (Crucial)
+                                    // Step 1: Set the target_uom from the matched condition rule
+                                    let target_uom = matched_rule.target_uom || pos_item.stock_uom;
                                     
                                     let args_item = {
                                         item_code: pos_item.item_code,
@@ -133,6 +150,7 @@ cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings)
                                             frappe.show_alert({ message: `Updated ${item_code} quantity`, indicator: 'green' });
                                         });
                                     } else {
+                                        // Step 2 & 3: Execute insertion with the "Insert-then-Correct" pattern
                                         window.cur_pos.on_cart_update({
                                             field: "qty",
                                             value: final_qty,
@@ -143,12 +161,12 @@ cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings)
                                                 let last_row = items[items.length - 1];
                                                 
                                                 if (last_row.item_code === item_code && last_row.uom !== target_uom) {
-                                                    // Safely update the model
+                                                    // Defensively force the UOM update on the DOM row
                                                     frappe.model.set_value(last_row.doctype, last_row.name, "uom", target_uom).then(() => {
                                                         // Immediately update UI so user sees the change
                                                         window.cur_pos.update_cart_html(last_row);
                                                         
-                                                        // Attempt to trigger server-side recalculation for conversion factor/rates
+                                                        // Force server-side recalculation of rates and conversion factors
                                                         try {
                                                             window.cur_pos.frm.script_manager.trigger("uom", last_row.doctype, last_row.name)
                                                                 .then(() => {
