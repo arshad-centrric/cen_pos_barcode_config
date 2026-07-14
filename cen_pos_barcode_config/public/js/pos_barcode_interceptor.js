@@ -85,7 +85,7 @@ cen_pos_barcode_config.init_barcode_interceptor = function() {
     });
 };
 
-cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings, matched_rule) {
+cen_pos_barcode_config.process_weigh_scale_barcode = frappe.utils.debounce(async function(barcode, settings, matched_rule) {
     try {
         let s_item = parseInt(settings.item_code_start, 10);
         let e_item = parseInt(settings.item_code_end, 10);
@@ -93,11 +93,9 @@ cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings,
         let e_qty = parseInt(settings.qty_end, 10);
 
         // Task 3: Dynamic Calculation & Assignment
-        // 1-Based UX Translation (subtract 1 from start index, leave end untouched)
         const item_code_str = barcode.substring(s_item - 1, e_item).trim();
         const qty_str = barcode.substring(s_qty - 1, e_qty).trim();
         
-        // Dynamic Calculation Check
         let qty_value = parseFloat(qty_str);
         if (matched_rule.apply_divisor === 1 && matched_rule.divisor_value) {
             qty_value = qty_value / parseFloat(matched_rule.divisor_value);
@@ -105,99 +103,85 @@ cen_pos_barcode_config.process_weigh_scale_barcode = function(barcode, settings,
         
         console.log(`[Weigh Scale Interceptor] Extracted - Barcode: ${item_code_str}, Qty: ${qty_value}, Target UOM: ${matched_rule.target_uom}`);
 
-        // Native DB Lookup via POS Barcode Scanner API
-        frappe.call({
+        // Async Native DB Lookup via POS Barcode Scanner API
+        let r = await frappe.call({
             method: "erpnext.selling.page.point_of_sale.point_of_sale.search_for_serial_or_batch_or_barcode_number",
-            args: { search_value: item_code_str },
-            callback: function(r) {
-                try {
-                    let results = r.message;
-                    if (results && results.item_code) {
-                        const item_code = results.item_code;
+            args: { search_value: item_code_str }
+        });
 
-                        if (window.cur_pos && window.cur_pos.item_selector) {
-                            window.cur_pos.item_selector.get_items({ search_term: item_code }).then(({ message }) => {
-                                if (message && message.items && message.items.length > 0) {
-                                    let pos_item = message.items[0];
-                                    
-                                    // Task 4: The UOM Injection (Crucial)
-                                    // Step 1: Set the target_uom from the matched condition rule
-                                    let target_uom = matched_rule.target_uom || pos_item.stock_uom;
-                                    
-                                    let args_item = {
-                                        item_code: pos_item.item_code,
-                                        batch_no: pos_item.batch_no,
-                                        serial_no: pos_item.serial_no,
-                                        uom: target_uom,
-                                        rate: pos_item.price_list_rate || 0,
-                                        stock_uom: pos_item.stock_uom
-                                    };
+        let results = r.message;
+        if (!results || !results.item_code) {
+            frappe.show_alert({ message: `Item not found for Barcode: ${item_code_str}`, indicator: 'red' });
+            return;
+        }
 
-                                    // Find existing item in the cart matching item_code and target_uom
-                                    let items = window.cur_pos.frm.doc.items || [];
-                                    let item_row = items.find(i => 
-                                        i.item_code === args_item.item_code && 
-                                        i.uom === target_uom && 
-                                        (!args_item.batch_no || i.batch_no === args_item.batch_no)
-                                    );
-                                    let final_qty = qty_value;
-                                    
-                                    // Cart Injection (Accumulate or Add)
-                                    if (item_row) {
-                                        final_qty = flt(item_row.qty) + flt(qty_value);
-                                        frappe.model.set_value(item_row.doctype, item_row.name, "qty", final_qty).then(() => {
-                                            window.cur_pos.update_cart_html(item_row);
-                                            frappe.show_alert({ message: `Updated ${item_code} quantity`, indicator: 'green' });
-                                        });
-                                    } else {
-                                        // Step 2 & 3: Execute insertion with the "Insert-then-Correct" pattern
-                                        window.cur_pos.on_cart_update({
-                                            field: "qty",
-                                            value: final_qty,
-                                            item: args_item
-                                        }).then(() => {
-                                            let items = window.cur_pos.frm.doc.items;
-                                            if (items && items.length > 0) {
-                                                let last_row = items[items.length - 1];
-                                                
-                                                if (last_row.item_code === item_code && last_row.uom !== target_uom) {
-                                                    // Defensively force the UOM update on the DOM row
-                                                    frappe.model.set_value(last_row.doctype, last_row.name, "uom", target_uom).then(() => {
-                                                        // Immediately update UI so user sees the change
-                                                        window.cur_pos.update_cart_html(last_row);
-                                                        
-                                                        // Force server-side recalculation of rates and conversion factors
-                                                        try {
-                                                            window.cur_pos.frm.script_manager.trigger("uom", last_row.doctype, last_row.name)
-                                                                .then(() => {
-                                                                    window.cur_pos.update_cart_html(last_row);
-                                                                })
-                                                                .catch(err => console.warn("[Weigh Scale Interceptor] UOM Trigger warning:", err));
-                                                        } catch (triggerErr) {
-                                                            console.warn("[Weigh Scale Interceptor] Failed to trigger UOM:", triggerErr);
-                                                        }
-                                                    }).catch(setErr => {
-                                                        console.error("[Weigh Scale Interceptor] Failed to set UOM:", setErr);
-                                                    });
-                                                }
-                                            }
-                                        }).catch(err => {
-                                            console.error("[Weigh Scale Interceptor] cart update error:", err);
-                                        });
-                                    }
-                                } else {
-                                    console.warn(`[Weigh Scale Interceptor] POS get_items failed to return item for: ${item_code}`);
-                                }
-                            });
-                        }
+        const item_code = results.item_code;
+
+        if (window.cur_pos && window.cur_pos.item_selector) {
+            let item_res = await window.cur_pos.item_selector.get_items({ search_term: item_code });
+            let message = item_res.message;
+
+            if (message && message.items && message.items.length > 0) {
+                let pos_item = message.items[0];
+                let target_uom = matched_rule.target_uom || pos_item.stock_uom;
+                
+                let args_item = {
+                    item_code: pos_item.item_code,
+                    batch_no: pos_item.batch_no,
+                    serial_no: pos_item.serial_no,
+                    uom: target_uom,
+                    rate: pos_item.price_list_rate || 0,
+                    stock_uom: pos_item.stock_uom
+                };
+
+                let items = window.cur_pos.frm.doc.items || [];
+                let item_row = items.find(i => 
+                    i.item_code === args_item.item_code && 
+                    i.uom === target_uom && 
+                    (!args_item.batch_no || i.batch_no === args_item.batch_no)
+                );
+                
+                let final_qty = qty_value;
+                
+                if (item_row) {
+                    // Accumulate existing
+                    final_qty = flt(item_row.qty) + flt(qty_value);
+                    await frappe.model.set_value(item_row.doctype, item_row.name, "qty", final_qty);
+                    window.cur_pos.update_cart_html(item_row);
+                    frappe.show_alert({ message: `Updated ${item_code} quantity`, indicator: 'green' });
                 } else {
-                    frappe.show_alert({ message: `Item not found for Barcode: ${item_code_str}`, indicator: 'red' });
+                    // Step 2 & 3: Execute insertion with the "Insert-then-Correct" pattern safely
+                    await window.cur_pos.on_cart_update({
+                        field: "qty",
+                        value: final_qty,
+                        item: args_item
+                    });
+
+                    let current_items = window.cur_pos.frm.doc.items;
+                    if (current_items && current_items.length > 0) {
+                        let last_row = current_items[current_items.length - 1];
+                        
+                        if (last_row.item_code === item_code && last_row.uom !== target_uom) {
+                            // Safely override the UOM model value
+                            await frappe.model.set_value(last_row.doctype, last_row.name, "uom", target_uom);
+                            
+                            // Force server-side recalculation of rates and conversion factors
+                            try {
+                                await window.cur_pos.frm.script_manager.trigger("uom", last_row.doctype, last_row.name);
+                            } catch (triggerErr) {
+                                console.warn("[Weigh Scale Interceptor] Failed to trigger UOM:", triggerErr);
+                            }
+                            
+                            // Paint the DOM exactly once after everything is fully calculated
+                            window.cur_pos.update_cart_html(last_row);
+                        }
+                    }
                 }
-            } catch(innerErr) {
-                console.error("[Weigh Scale Interceptor] Result processing error:", innerErr);
+            } else {
+                console.warn(`[Weigh Scale Interceptor] POS get_items failed to return item for: ${item_code}`);
             }
-        }});
+        }
     } catch(err) {
         console.error("[Weigh Scale Interceptor] Parsing error:", err);
     }
-};
+}, 300);

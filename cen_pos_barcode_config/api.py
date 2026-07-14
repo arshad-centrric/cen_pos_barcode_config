@@ -46,9 +46,13 @@ def generate_weigh_scale_barcode(doc, method):
         doc.barcode = barcode_val
 
     # 5. Update the Counter
-    frappe.db.set_value(
-        "Weigh Scale Settings", 
-        "Weigh Scale Settings", 
-        "last_generated_sequence", 
-        next_seq
+    # Use raw SQL to bypass full ORM save operations for high-speed barcode generation
+    frappe.db.sql(
+        """
+        UPDATE `tabSingles` 
+        SET value = %s 
+        WHERE doctype = 'Weigh Scale Settings' 
+        AND field = 'last_generated_sequence'
+        """,
+        (next_seq,)
     )
