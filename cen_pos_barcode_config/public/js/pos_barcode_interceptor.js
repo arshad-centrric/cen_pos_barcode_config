@@ -64,6 +64,15 @@ cen_pos_barcode_config.init_barcode_interceptor = function() {
                                     }
                                     // If no match, we exit this block naturally and let the POS handle it standardly
                                 }
+                                
+                                // Standard Barcode Auto-Add Check
+                                // If it didn't match the Weigh Scale logic, we fire an asynchronous check.
+                                // If the backend confirms it is an EXACT barcode match, it will automatically
+                                // add it to the cart and clear the UI. If not, it silently fails and lets 
+                                // the standard POS grid filtering handle it.
+                                if (search_term && search_term.length > 2) {
+                                    cen_pos_barcode_config.process_standard_barcode(search_term.trim());
+                                }
                             } catch(err) {
                                 console.error("[Weigh Scale Interceptor] Validation error:", err);
                             }
@@ -148,7 +157,6 @@ cen_pos_barcode_config.process_weigh_scale_barcode = frappe.utils.debounce(async
                     final_qty = flt(item_row.qty) + flt(qty_value);
                     await frappe.model.set_value(item_row.doctype, item_row.name, "qty", final_qty);
                     window.cur_pos.update_cart_html(item_row);
-                    frappe.show_alert({ message: `Updated ${item_code} quantity`, indicator: 'green' });
                 } else {
                     // Step 2 & 3: Execute insertion with the "Insert-then-Correct" pattern safely
                     await window.cur_pos.on_cart_update({
@@ -183,5 +191,75 @@ cen_pos_barcode_config.process_weigh_scale_barcode = frappe.utils.debounce(async
         }
     } catch(err) {
         console.error("[Weigh Scale Interceptor] Parsing error:", err);
+    }
+}, 300);
+
+cen_pos_barcode_config.process_standard_barcode = frappe.utils.debounce(async function(barcode) {
+    try {
+        console.log(`[Weigh Scale Interceptor] Auto-Adding Standard Barcode: ${barcode}`);
+        
+        let r = await frappe.call({
+            method: "erpnext.selling.page.point_of_sale.point_of_sale.search_for_serial_or_batch_or_barcode_number",
+            args: { search_value: barcode }
+        });
+        
+        let results = r.message;
+        if (!results || !results.item_code) {
+            // Silently fail: It's just a normal manual search string (like "Apple"), not a barcode.
+            return;
+        }
+
+        const item_code = results.item_code;
+        
+        // It IS an exact barcode match! Clear the search UI immediately so it doesn't stay filtered.
+        if (window.cur_pos && window.cur_pos.item_selector) {
+            window.cur_pos.item_selector.set_search_value("");
+        }
+        
+        if (window.cur_pos && window.cur_pos.item_selector) {
+            let item_res = await window.cur_pos.item_selector.get_items({ search_term: item_code });
+            let message = item_res.message;
+
+            if (message && message.items && message.items.length > 0) {
+                let pos_item = message.items[0];
+                
+                let args_item = {
+                    item_code: pos_item.item_code,
+                    batch_no: pos_item.batch_no,
+                    serial_no: pos_item.serial_no,
+                    uom: pos_item.stock_uom,
+                    rate: pos_item.price_list_rate || 0,
+                    stock_uom: pos_item.stock_uom
+                };
+
+                let items = window.cur_pos.frm.doc.items || [];
+                let item_row = items.find(i => 
+                    i.item_code === args_item.item_code && 
+                    (!args_item.batch_no || i.batch_no === args_item.batch_no)
+                );
+                
+                if (item_row) {
+                    let final_qty = flt(item_row.qty) + 1.0;
+                    await frappe.model.set_value(item_row.doctype, item_row.name, "qty", final_qty);
+                    window.cur_pos.update_cart_html(item_row);
+                } else {
+                    await window.cur_pos.on_cart_update({
+                        field: "qty",
+                        value: 1.0,
+                        item: args_item
+                    });
+                    
+                    let current_items = window.cur_pos.frm.doc.items;
+                    if (current_items && current_items.length > 0) {
+                        let last_row = current_items[current_items.length - 1];
+                        window.cur_pos.update_cart_html(last_row);
+                    }
+                }
+            } else {
+                frappe.show_alert({ message: `Item details not found: ${item_code}`, indicator: 'red' });
+            }
+        }
+    } catch(err) {
+        console.error("[Weigh Scale Interceptor] Standard barcode parsing error:", err);
     }
 }, 300);
