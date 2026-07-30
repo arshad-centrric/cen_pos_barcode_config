@@ -55,7 +55,7 @@ fixtures = [
 # webform_include_css = {"doctype": "public/css/doctype.css"}
 
 # include js in page
-page_js = {"point-of-sale" : "public/js/pos_barcode_interceptor.js"}
+page_js = {"point-of-sale": ["public/js/pos_barcode_interceptor.js", "public/js/pos_cart_order.js"]}
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
