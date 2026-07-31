@@ -47,9 +47,6 @@ cen_pos_barcode_config.init_cart_order = function() {
                                         this.$cart_items_wrapper.prepend($separator);
                                     }
                                     this.$cart_items_wrapper.prepend($item);
-                                    
-                                    // Scroll to top to ensure visibility of latest item
-                                    this.$cart_items_wrapper.animate({ scrollTop: 0 }, 150);
                                 }
                             } catch(e) {
                                 console.error("[POS Cart Order] Error reordering cart:", e);
