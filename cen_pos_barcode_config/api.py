@@ -56,3 +56,7 @@ def generate_weigh_scale_barcode(doc, method):
         """,
         (next_seq,)
     )
+
+@frappe.whitelist(allow_guest=False)
+def get_barcode_uom(barcode):
+    return frappe.db.get_value("Item Barcode", {"barcode": barcode}, ["parent", "uom"], as_dict=True)
