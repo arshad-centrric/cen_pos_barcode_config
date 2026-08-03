@@ -198,36 +198,50 @@ cen_pos_barcode_config.process_standard_barcode = frappe.utils.debounce(async fu
     try {
         console.log(`[Weigh Scale Interceptor] Auto-Adding Standard Barcode: ${barcode}`);
         
-        let r = await frappe.call({
-            method: "erpnext.selling.page.point_of_sale.point_of_sale.search_for_serial_or_batch_or_barcode_number",
-            args: { search_value: barcode }
+        // Fetch specific barcode UOM from Item Barcode child table securely via whitelisted API
+        let barcode_res = await frappe.call({
+            method: "cen_pos_barcode_config.api.get_barcode_uom",
+            args: { barcode: barcode }
         });
         
-        let results = r.message;
-        if (!results || !results.item_code) {
+        let item_code = null;
+        let target_uom = null;
+        
+        if (barcode_res && barcode_res.message && barcode_res.message.parent) {
+            item_code = barcode_res.message.parent;
+            target_uom = barcode_res.message.uom;
+        } else {
+            // Fallback for primary Item barcode, Serial No, or Batch No
+            let r = await frappe.call({
+                method: "erpnext.selling.page.point_of_sale.point_of_sale.search_for_serial_or_batch_or_barcode_number",
+                args: { search_value: barcode }
+            });
+            if (r.message && r.message.item_code) {
+                item_code = r.message.item_code;
+            }
+        }
+        
+        if (!item_code) {
             // Silently fail: It's just a normal manual search string (like "Apple"), not a barcode.
             return;
         }
-
-        const item_code = results.item_code;
         
         // It IS an exact barcode match! Clear the search UI immediately so it doesn't stay filtered.
         if (window.cur_pos && window.cur_pos.item_selector) {
             window.cur_pos.item_selector.set_search_value("");
-        }
-        
-        if (window.cur_pos && window.cur_pos.item_selector) {
+            
             let item_res = await window.cur_pos.item_selector.get_items({ search_term: item_code });
             let message = item_res.message;
 
             if (message && message.items && message.items.length > 0) {
                 let pos_item = message.items[0];
+                let resolved_uom = target_uom || pos_item.stock_uom;
                 
                 let args_item = {
                     item_code: pos_item.item_code,
                     batch_no: pos_item.batch_no,
                     serial_no: pos_item.serial_no,
-                    uom: pos_item.stock_uom,
+                    uom: resolved_uom,
                     rate: pos_item.price_list_rate || 0,
                     stock_uom: pos_item.stock_uom
                 };
@@ -235,6 +249,7 @@ cen_pos_barcode_config.process_standard_barcode = frappe.utils.debounce(async fu
                 let items = window.cur_pos.frm.doc.items || [];
                 let item_row = items.find(i => 
                     i.item_code === args_item.item_code && 
+                    i.uom === resolved_uom &&
                     (!args_item.batch_no || i.batch_no === args_item.batch_no)
                 );
                 
@@ -252,6 +267,19 @@ cen_pos_barcode_config.process_standard_barcode = frappe.utils.debounce(async fu
                     let current_items = window.cur_pos.frm.doc.items;
                     if (current_items && current_items.length > 0) {
                         let last_row = current_items[current_items.length - 1];
+                        
+                        if (last_row.item_code === item_code && last_row.uom !== resolved_uom) {
+                            // Safely override the UOM model value
+                            await frappe.model.set_value(last_row.doctype, last_row.name, "uom", resolved_uom);
+                            
+                            // Force server-side recalculation of rates and conversion factors
+                            try {
+                                await window.cur_pos.frm.script_manager.trigger("uom", last_row.doctype, last_row.name);
+                            } catch (triggerErr) {
+                                console.warn("[Weigh Scale Interceptor] Failed to trigger UOM:", triggerErr);
+                            }
+                        }
+                        
                         window.cur_pos.update_cart_html(last_row);
                     }
                 }
