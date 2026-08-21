@@ -41,7 +41,7 @@ fixtures = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/cen_pos_barcode_config/css/cen_pos_barcode_config.css"
-# app_include_js = "/assets/cen_pos_barcode_config/js/cen_pos_barcode_config.js"
+app_include_js = "/assets/cen_pos_barcode_config/js/weigh_scale_parser.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/cen_pos_barcode_config/css/cen_pos_barcode_config.css"
