@@ -1,7 +1,7 @@
 import frappe
 
 @frappe.whitelist(allow_guest=True)
-def get_print_payload(item_code, template_name=None):
+def get_print_payload(item_code, template_name=None, price_list="Standard Selling"):
     """
     Fetch data payload for desktop barcode printer application.
     """
@@ -20,12 +20,16 @@ def get_print_payload(item_code, template_name=None):
     )
     
     if item_prices:
-        # Find "Standard Selling" or fallback to first available
-        standard_price = next((p for p in item_prices if p.price_list == "Standard Selling"), None)
-        if standard_price:
-            price = standard_price.price_list_rate
+        requested_price = next((p for p in item_prices if p.price_list == price_list), None)
+        if requested_price:
+            price = requested_price.price_list_rate
         else:
-            price = item_prices[0].price_list_rate
+            # Fallback to Standard Selling or first available
+            standard_price = next((p for p in item_prices if p.price_list == "Standard Selling"), None)
+            if standard_price:
+                price = standard_price.price_list_rate
+            else:
+                price = item_prices[0].price_list_rate
 
     # 3. Fetch the 'tspl_code' from the 'TSPL Printer Template'
     if not template_name:
@@ -97,4 +101,15 @@ def search_items(search_key="", limit_start=1, limit_page_length=20):
         fields=["name as item_code", "item_name", "item_group"],
         limit_start=db_start,
         limit_page_length=limit_page_length
+    )
+
+@frappe.whitelist()
+def get_allowed_selling_price_lists():
+    """
+    Fetch all selling price lists the current user is authorized to access.
+    """
+    return frappe.get_list(
+        "Price List",
+        filters={"selling": 1, "enabled": 1},
+        fields=["name"]
     )
